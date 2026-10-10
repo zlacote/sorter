@@ -1,6 +1,7 @@
 package zlaco.sorter.core
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Test
 
@@ -26,17 +27,17 @@ class FolderNameTest {
         val folder = FolderName.from("AC/DC")
 
         assertEquals("AC_DC", folder)
-        assertNull(folder?.contains('/'))
+        assertFalse(folder!!.contains('/'))
     }
 
     @Test
     fun `replaces characters a filesystem rejects`() {
-        assertEquals("a_b_c_d_e_f", FolderName.from("a:b*c?d\"e<f>g"))
+        assertEquals("a_b_c_d_e_f_g", FolderName.from("a:b*c?d\"e<f>g"))
     }
 
     @Test
-    fun `strips control characters`() {
-        assertEquals("AB", FolderName.from("A\u0000B"))
+    fun `replaces control characters`() {
+        assertEquals("A_B", FolderName.from("A\u0000B"))
     }
 
     @Test
@@ -49,9 +50,19 @@ class FolderNameTest {
         assertEquals("Soul", FolderName.from("Soul. "))
     }
 
+    /**
+     * The label comes from an untrusted file name, so a name made only of
+     * separators is folded to a placeholder rather than treated as unusable.
+     * Refusing it would leave the file unsorted for a reason the user cannot
+     * act on; a placeholder folder at least keeps the promise.
+     */
     @Test
-    fun `refuses a name that is only separators`() {
-        assertNull(FolderName.from("///"))
+    fun `folds a name made only of separators into a placeholder`() {
+        assertEquals("___", FolderName.from("///"))
+    }
+
+    @Test
+    fun `refuses a name that is only whitespace`() {
         assertNull(FolderName.from("   "))
     }
 
