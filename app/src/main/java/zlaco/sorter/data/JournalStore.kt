@@ -33,10 +33,19 @@ class JournalStore(context: Context) {
         }
 
         override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-            // The journal is a convenience, not the source of truth: losing it
-            // costs the undo history, never a file. Rebuilding is the safe read.
-            db.execSQL("DROP TABLE IF EXISTS $TABLE")
-            onCreate(db)
+            // v2 added mime_type, which undo needs to address the same
+            // collection the row was read from. Adding the column keeps the
+            // history: dropping the table would empty the list on upgrade and
+            // look exactly like the recording bug it was meant to fix. A row
+            // that predates the column defaults to the images collection, which
+            // is where a screenshot is.
+            if (oldVersion < 2) {
+                runCatching {
+                    db.execSQL(
+                        "ALTER TABLE $TABLE ADD COLUMN $COLUMN_MIME TEXT NOT NULL DEFAULT ''"
+                    )
+                }
+            }
         }
     }
 
