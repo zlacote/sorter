@@ -52,12 +52,12 @@ class SorterSettings(context: Context) {
         get() = prefs.getInt(KEY_LAST_FAILURES, 0)
         private set(value) = prefs.edit().putInt(KEY_LAST_FAILURES, value).apply()
 
-    fun recordRun(moved: Int, scanned: Int, failures: Int) {
+    fun recordRun(status: RunStatus) {
         prefs.edit()
-            .putLong(KEY_LAST_RUN_AT, System.currentTimeMillis())
-            .putInt(KEY_LAST_MOVED, moved)
-            .putInt(KEY_LAST_SCANNED, scanned)
-            .putInt(KEY_LAST_FAILURES, failures)
+            .putLong(KEY_LAST_RUN_AT, status.atMillis)
+            .putInt(KEY_LAST_MOVED, status.moved)
+            .putInt(KEY_LAST_SCANNED, status.scanned)
+            .putInt(KEY_LAST_FAILURES, status.failures)
             .apply()
     }
 

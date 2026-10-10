@@ -13,6 +13,8 @@ import zlaco.sorter.data.JournalStore
 import zlaco.sorter.data.MediaStoreGateway
 import zlaco.sorter.data.MoveOutcome
 import zlaco.sorter.data.MoveRecord
+import zlaco.sorter.data.RunStatus
+import zlaco.sorter.data.RunStatusBus
 import zlaco.sorter.data.SorterSettings
 
 data class RunReport(
@@ -47,11 +49,14 @@ class SortEngine(context: Context) {
      */
     suspend fun runAndRecord(): RunReport {
         val report = run()
-        settings.recordRun(
+        val status = RunStatus(
+            atMillis = System.currentTimeMillis(),
             moved = report.movedCount,
             scanned = report.scanned,
             failures = report.failures.size,
         )
+        settings.recordRun(status)
+        RunStatusBus.publish(status)
         return report
     }
 

@@ -6,10 +6,14 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
 import zlaco.sorter.core.SortPolicy
 import zlaco.sorter.data.MoveRecord
+import zlaco.sorter.data.RunStatus
+import zlaco.sorter.data.RunStatusBus
 import zlaco.sorter.data.StoragePermissions
 import zlaco.sorter.domain.SortEngine
 import zlaco.sorter.watch.WatchScheduler
@@ -66,6 +70,26 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     init {
         refresh()
+        observeRuns()
+    }
+
+    /**
+     * Keeps the screen truthful while it is open.
+     *
+     * Anything can trigger a pass — the wake-up job, the safety net, the
+     * button — and only the button is something this class knows about. Without
+     * listening, a screenshot sorted automatically would leave the status line
+     * and the history showing the previous run until the user happened to leave
+     * and come back, which looks exactly like the app ignoring its own work.
+     */
+    private fun observeRuns() {
+        viewModelScope.launch {
+            RunStatusBus.status.collect { status ->
+                if (status == null) return@collect
+                val moves = withContext(Dispatchers.IO) { engine.recentMoves() }
+                _state.update { it.copy(lastRun = status.toLastRun(), moves = moves) }
+            }
+        }
     }
 
     /**
@@ -103,8 +127,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                                 scanned = settings.lastRunScanned,
                                 failures = settings.lastRunFailures,
                             )
-                        },
-                    moves = engine.recentMoves(),
+                        },                    moves = engine.recentMoves(),
                 )
             }
         }
@@ -200,3 +223,5 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         _state.update { it.copy(notice = null) }
     }
 }
+
+private fun RunStatus.toLastRun() = LastRun(atMillis, moved, scanned, failures)
