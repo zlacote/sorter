@@ -81,22 +81,27 @@ sleep 1
 # Ask the platform to index the file through its own API rather than hoping a
 # shell write gets noticed. Until the store knows about the row there is
 # nothing for the engine to act on, so this stage is verified on its own.
+# The column names are the ones under the MediaStore.MediaColumns constants,
+# not the constant names themselves: _display_name, not DISPLAY_NAME. Getting
+# this wrong makes the query throw and looks exactly like "not indexed".
+MEDIA_URI="content://media/external_primary/images/media"
+MEDIA_COLUMNS="_id:_display_name:relative_path"
+
 INDEXED=0
 for i in $(seq 1 15); do
   adb shell am broadcast -a zlaco.sorter.debug.SCAN -p "$PKG" --es path "$SRC" \
     >/dev/null 2>&1 || true
   sleep 2
-  ROWS=$(adb shell content query --uri content://media/external/images/media \
-    --projection _id:DISPLAY_NAME:RELATIVE_PATH \
-    --where "DISPLAY_NAME='${PROBE_NAME}'" 2>/dev/null | tr -d '\r')
+  ROWS=$(adb shell content query --uri "$MEDIA_URI" \
+    --projection "$MEDIA_COLUMNS" \
+    --where "_display_name='${PROBE_NAME}'" 2>/dev/null | tr -d '\r')
   case "$ROWS" in
     *"${PROBE_APP}"*) INDEXED=1; break ;;
   esac
 done
 
 # Always keep what the store actually held, so a failure says which stage broke.
-adb shell content query --uri content://media/external/images/media \
-  --projection _id:DISPLAY_NAME:RELATIVE_PATH \
+adb shell content query --uri "$MEDIA_URI" --projection "$MEDIA_COLUMNS" \
   > "$LOG_DIR/mediastore_dump.txt" 2>&1 || true
 
 [ "$INDEXED" = "1" ] || fail "the media store never indexed the probe; see mediastore_dump.txt"
