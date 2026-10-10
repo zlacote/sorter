@@ -2,21 +2,38 @@ package zlaco.sorter.ui
 
 import android.text.format.DateUtils
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -25,16 +42,34 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import zlaco.sorter.R
 import zlaco.sorter.data.MoveRecord
+
+private enum class Tab(val labelRes: Int, val icon: androidx.compose.ui.graphics.vector.ImageVector) {
+    SORT(R.string.tab_sort, Icons.Filled.Folder),
+    HISTORY(R.string.tab_history, Icons.Filled.History),
+    SETTINGS(R.string.tab_settings, Icons.Filled.Tune),
+}
+
+/**
+ * Width ceiling for the content. A phone is narrower than this so nothing
+ * changes there; on a tablet or a landscape window it stops a row of text and
+ * buttons from stretching the whole way across the screen.
+ */
+private val CONTENT_MAX_WIDTH = 480.dp
 
 @Composable
 fun MainScreen(
@@ -44,10 +79,12 @@ fun MainScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
     val context = LocalContext.current
+    var tab by rememberSaveable { mutableStateOf(Tab.SORT) }
 
     val notice = state.notice
     val noticeText = when (notice) {
         is Notice.Moved -> context.getString(R.string.result_moved, notice.count)
+        Notice.AlreadySorted -> context.getString(R.string.result_already_sorted)
         Notice.NothingToDo -> context.getString(R.string.result_nothing)
         Notice.NeedsPermission -> context.getString(R.string.needs_permission)
         Notice.UndoFailed -> context.getString(R.string.undo_failed)
@@ -62,74 +99,243 @@ fun MainScreen(
         }
     }
 
-    Scaffold(snackbarHost = { SnackbarHost(snackbar) }) { padding ->
+    Scaffold(
+        snackbarHost = { SnackbarHost(snackbar) },
+        bottomBar = {
+            NavigationBar {
+                Tab.entries.forEach { entry ->
+                    NavigationBarItem(
+                        selected = tab == entry,
+                        onClick = { tab = entry },
+                        icon = { Icon(entry.icon, contentDescription = null) },
+                        label = { Text(stringResource(entry.labelRes)) },
+                    )
+                }
+            }
+        },
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding),
+        ) {
+            when (tab) {
+                Tab.SORT -> SortTab(state, viewModel::setEnabled, onOpenSettings, viewModel::sortNow)
+                Tab.HISTORY -> HistoryTab(state.moves, viewModel::undo)
+                Tab.SETTINGS -> SettingsTab(state, viewModel)
+            }
+        }
+    }
+}
+
+/**
+ * Shared shape for the single-screen tabs: scrollable, width-capped and
+ * centred on the long axis when there is little to show, so a screen with a
+ * switch and a button does not look abandoned at the top of a tall display.
+ */
+@Composable
+private fun CenteredTab(content: @Composable ColumnScope.() -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Column(
+            modifier = Modifier
+                .widthIn(max = CONTENT_MAX_WIDTH)
+                .fillMaxWidth(),
+            content = content,
+        )
+    }
+}
+
+@Composable
+private fun SortTab(
+    state: UiState,
+    onEnabledChange: (Boolean) -> Unit,
+    onOpenSettings: () -> Unit,
+    onSortNow: () -> Unit,
+) {
+    CenteredTab {
+        Spacer(Modifier.height(24.dp))
+
+        SwitchRow(
+            title = stringResource(R.string.enable_title),
+            summary = stringResource(R.string.enable_summary),
+            checked = state.enabled,
+            onCheckedChange = onEnabledChange,
+        )
+
+        if (state.showPermissionAction) {
+            Spacer(Modifier.height(12.dp))
+            PermissionCard(onOpenSettings = onOpenSettings)
+        }
+
+        Spacer(Modifier.height(12.dp))
+        OutlinedButton(
+            onClick = onSortNow,
+            enabled = !state.isWorking && state.hasPermission,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(
+                text = stringResource(if (state.isWorking) R.string.working else R.string.sort_now),
+                textAlign = TextAlign.Center,
+            )
+        }
+
+        Spacer(Modifier.height(12.dp))
+        StatusSection(state)
+        Spacer(Modifier.height(24.dp))
+    }
+}
+
+@Composable
+private fun HistoryTab(moves: List<MoveRecord>, onUndo: (MoveRecord) -> Unit) {
+    if (moves.isEmpty()) {
+        CenteredTab {
+            Text(
+                text = stringResource(R.string.history_empty),
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+            )
+        }
+        return
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 16.dp),
+        contentAlignment = Alignment.TopCenter,
+    ) {
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+                .widthIn(max = CONTENT_MAX_WIDTH),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             item {
-                Spacer(Modifier.height(8.dp))
-                SwitchRow(
-                    title = stringResource(R.string.enable_title),
-                    summary = stringResource(R.string.enable_summary),
-                    checked = state.enabled,
-                    onCheckedChange = viewModel::setEnabled,
-                )
-            }
-
-            if (state.showPermissionAction) {
-                item { PermissionCard(onOpenSettings = onOpenSettings) }
-            }
-
-            item {
-                OutlinedButton(
-                    onClick = viewModel::sortNow,
-                    enabled = !state.isWorking && state.hasPermission,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text(stringResource(R.string.sort_now))
-                }
-            }
-
-            item {
-                SwitchRow(
-                    title = stringResource(R.string.recordings_title),
-                    summary = stringResource(R.string.recordings_summary),
-                    checked = state.includeRecordings,
-                    onCheckedChange = viewModel::setIncludeRecordings,
-                )
-            }
-
-            item { StatusSection(state) }
-
-            item {
                 Text(
-                    text = stringResource(R.string.history_title),
+                    text = stringResource(R.string.history_count, moves.size),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.padding(top = 8.dp),
+                    modifier = Modifier.padding(top = 16.dp, bottom = 8.dp),
                 )
             }
+            items(moves, key = { it.movedAtMillis.toString() + it.displayName }) { move ->
+                HistoryRow(move = move, onUndo = { onUndo(move) })
+            }
+            item { Spacer(Modifier.height(16.dp)) }
+        }
+    }
+}
 
-            if (state.moves.isEmpty()) {
-                item {
-                    Text(
-                        text = stringResource(R.string.history_empty),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            } else {
-                items(state.moves, key = { it.mediaId }) { move ->
-                    HistoryRow(move = move, onUndo = { viewModel.undo(move) })
+@Composable
+private fun SettingsTab(state: UiState, viewModel: MainViewModel) {
+    var newFolder by rememberSaveable { mutableStateOf("") }
+    var targetDraft by rememberSaveable { mutableStateOf(state.targetRoot) }
+
+    // Keep the field showing what is actually stored after an external change,
+    // rather than whatever was typed before the screen was last built.
+    LaunchedEffect(state.targetRoot) {
+        if (viewModel.isTargetRoot(targetDraft)) targetDraft = state.targetRoot
+    }
+
+    CenteredTab {
+        Spacer(Modifier.height(24.dp))
+
+        Text(
+            text = stringResource(R.string.sources_title),
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = stringResource(R.string.sources_summary),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.height(8.dp))
+
+        state.sourceFolders.forEach { folder ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = folder,
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.weight(1f),
+                )
+                IconButton(onClick = { viewModel.removeSourceFolder(folder) }) {
+                    Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.remove_source))
                 }
             }
-
-            item { Spacer(Modifier.height(24.dp)) }
         }
+
+        Spacer(Modifier.height(8.dp))
+        OutlinedTextField(
+            value = newFolder,
+            onValueChange = { newFolder = it },
+            label = { Text(stringResource(R.string.source_hint)) },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+            keyboardActions = KeyboardActions(
+                onDone = {
+                    if (viewModel.addSourceFolder(newFolder)) newFolder = ""
+                },
+            ),
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(Modifier.height(8.dp))
+        OutlinedButton(
+            onClick = { if (viewModel.addSourceFolder(newFolder)) newFolder = "" },
+            enabled = newFolder.isNotBlank(),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(stringResource(R.string.add_source))
+        }
+
+        Spacer(Modifier.height(20.dp))
+        HorizontalDivider()
+        Spacer(Modifier.height(20.dp))
+
+        OutlinedTextField(
+            value = targetDraft,
+            onValueChange = { targetDraft = it },
+            label = { Text(stringResource(R.string.target_title)) },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+            keyboardActions = KeyboardActions(
+                onDone = { viewModel.setTargetRoot(targetDraft) },
+            ),
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(Modifier.height(8.dp))
+        OutlinedButton(
+            onClick = { viewModel.setTargetRoot(targetDraft) },
+            enabled = targetDraft.isNotBlank() && !viewModel.isTargetRoot(targetDraft),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(stringResource(R.string.save))
+        }
+
+        Spacer(Modifier.height(20.dp))
+        HorizontalDivider()
+        Spacer(Modifier.height(20.dp))
+
+        SwitchRow(
+            title = stringResource(R.string.recordings_title),
+            summary = stringResource(R.string.recordings_summary),
+            checked = state.includeRecordings,
+            onCheckedChange = viewModel::setIncludeRecordings,
+        )
+
+        Spacer(Modifier.height(24.dp))
     }
 }
 
@@ -178,7 +384,7 @@ private fun PermissionCard(onOpenSettings: () -> Unit) {
                 color = MaterialTheme.colorScheme.onErrorContainer,
             )
             Spacer(Modifier.height(12.dp))
-            Button(onClick = onOpenSettings) {
+            Button(onClick = onOpenSettings, modifier = Modifier.fillMaxWidth()) {
                 Text(stringResource(R.string.open_settings))
             }
         }
@@ -229,18 +435,15 @@ private fun StatusSection(state: UiState) {
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-
-            if (state.isWorking) {
-                Spacer(Modifier.height(4.dp))
-                Text(stringResource(R.string.working), style = MaterialTheme.typography.bodySmall)
-            }
         }
     }
 }
 
 @Composable
 private fun HistoryRow(move: MoveRecord, onUndo: () -> Unit) {
-    Column {
+    // fillMaxWidth is load-bearing: without it the column wraps to its text and
+    // the row, and the divider under it, shrink into a narrow strip.
+    Column(modifier = Modifier.fillMaxWidth()) {
         Text(text = move.displayName, style = MaterialTheme.typography.bodyLarge)
         Text(
             text = stringResource(R.string.history_item, move.fromRelativePath, move.toRelativePath),

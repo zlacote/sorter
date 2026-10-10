@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import zlaco.sorter.core.SortPolicy
 import zlaco.sorter.data.MoveRecord
 import zlaco.sorter.data.StoragePermissions
 import zlaco.sorter.domain.SortEngine
@@ -22,6 +23,13 @@ data class LastRun(
 
 sealed interface Notice {
     data class Moved(val count: Int) : Notice
+
+    /**
+     * Nothing to do now, but the journal says files were sorted earlier. Saying
+     * only "nothing to move" here reads as a failure when the app is in fact
+     * working, which is the worst possible thing for a background tool to do.
+     */
+    data object AlreadySorted : Notice
     data object NothingToDo : Notice
     data object NeedsPermission : Notice
     data object UndoFailed : Notice
@@ -35,6 +43,8 @@ data class UiState(
     val isWorking: Boolean = false,
     val lastRun: LastRun? = null,
     val moves: List<MoveRecord> = emptyList(),
+    val sourceFolders: List<String> = emptyList(),
+    val targetRoot: String = "",
     val notice: Notice? = null,
 ) {
     /**
@@ -81,6 +91,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     hasPermission = hasPermission,
                     isArmed = enabled && hasPermission,
                     includeRecordings = settings.includeScreenRecordings,
+                    sourceFolders = settings.sourceFolders.sorted(),
+                    targetRoot = settings.targetRoot,
                     lastRun = settings.lastRunAtMillis
                         .takeIf { it > 0L }
                         ?.let { at ->
@@ -125,16 +137,55 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             _state.update { it.copy(isWorking = true, notice = null) }
             val report = engine.runAndRecord()
+            val history = engine.recentMoves()
             _state.update {
                 it.copy(
                     isWorking = false,
-                    moves = engine.recentMoves(),
-                    notice = if (report.movedCount > 0) Notice.Moved(report.movedCount) else Notice.NothingToDo,
+                    moves = history,
+                    notice = when {
+                        report.movedCount > 0 -> Notice.Moved(report.movedCount)
+                        // Auto-sorting may well have done this work before the
+                        // button was ever pressed. Report that, not a failure.
+                        history.isNotEmpty() -> Notice.AlreadySorted
+                        else -> Notice.NothingToDo
+                    },
                 )
             }
             refresh()
         }
     }
+
+    /**
+     * Adds a source folder. The value is normalised the same way the query
+     * normalises it, so a user typing `DCIM/Screenshots` and one typing
+     * `DCIM/Screenshots/` end up as the same folder rather than one silently
+     * matching nothing.
+     */
+    fun addSourceFolder(raw: String): Boolean {
+        val normalized = SortPolicy.normalize(raw)
+        if (normalized.isEmpty()) return false
+        val current = settings.sourceFolders
+        if (normalized in current) return false
+        settings.sourceFolders = current + normalized
+        refresh()
+        return true
+    }
+
+    fun removeSourceFolder(folder: String) {
+        settings.sourceFolders = settings.sourceFolders - folder
+        refresh()
+    }
+
+    fun setTargetRoot(raw: String): Boolean {
+        val normalized = SortPolicy.normalize(raw)
+        if (normalized.isEmpty()) return false
+        settings.targetRoot = normalized
+        refresh()
+        return true
+    }
+
+    /** True when the edited text is already what is stored, so the field can reset. */
+    fun isTargetRoot(raw: String): Boolean = SortPolicy.normalize(raw) == settings.targetRoot
 
     fun undo(record: MoveRecord) {
         viewModelScope.launch {

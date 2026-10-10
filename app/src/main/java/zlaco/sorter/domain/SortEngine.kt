@@ -2,6 +2,8 @@ package zlaco.sorter.domain
 
 import android.content.Context
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import zlaco.sorter.core.SkipReason
 import zlaco.sorter.core.SortPolicy
@@ -52,7 +54,18 @@ class SortEngine(context: Context) {
         return report
     }
 
-    suspend fun run(): RunReport = withContext(Dispatchers.IO) {
+    /**
+     * Serialised process-wide, not per engine instance: the wake-up job, the
+     * safety net and the button each build their own engine, and all three can
+     * fire at once. Two passes reading the journal at the same moment would
+     * both see a file as unhandled and both try to move it, so the second would
+     * fail on a row the first had already moved. Queuing also makes the button
+     * honest: it waits for the background pass to finish and then reports what
+     * is left rather than racing it.
+     */
+    suspend fun run(): RunReport = passMutex.withLock { runPass() }
+
+    private suspend fun runPass(): RunReport = withContext(Dispatchers.IO) {
         val config = settings.sortConfig()
         val handled = journal.handledIds()
         val candidates = gateway.candidatesIn(config.sourceFolders)
@@ -93,18 +106,24 @@ class SortEngine(context: Context) {
     }
 
     /** Puts a file back where it came from. The journal entry is dropped only once it lands. */
-    suspend fun undo(record: MoveRecord): Boolean = withContext(Dispatchers.IO) {
-        when (gateway.move(record.mediaId, record.mimeType, record.fromRelativePath)) {
-            is MoveOutcome.Moved -> {
-                journal.forget(record.mediaId)
-                true
-            }
+    suspend fun undo(record: MoveRecord): Boolean = passMutex.withLock {
+        withContext(Dispatchers.IO) {
+            when (gateway.move(record.mediaId, record.mimeType, record.fromRelativePath)) {
+                is MoveOutcome.Moved -> {
+                    journal.forget(record.mediaId)
+                    true
+                }
 
-            else -> false
+                else -> false
+            }
         }
     }
 
     fun recentMoves(limit: Int = 50): List<MoveRecord> = journal.recent(limit)
 
     fun settings(): SorterSettings = settings
+
+    private companion object {
+        val passMutex = Mutex()
+    }
 }

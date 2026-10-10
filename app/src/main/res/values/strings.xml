@@ -30,6 +30,22 @@
 
     <string name="working">Working…</string>
     <string name="result_moved">Moved %1$d file(s).</string>
+    <string name="result_already_sorted">Nothing left to move. Earlier files are already in their folders — see History.</string>
     <string name="result_nothing">Nothing to move.</string>
     <string name="needs_permission">Grant permission first.</string>
+
+    <string name="tab_sort">Sorting</string>
+    <string name="tab_history">History</string>
+    <string name="tab_settings">Settings</string>
+
+    <string name="history_count">%1$d move(s)</string>
+
+    <string name="sources_title">Source folders</string>
+    <string name="sources_summary">Files sitting directly in these folders are sorted. Give a path without a leading slash, for example DCIM/Screenshots.</string>
+    <string name="source_hint">Folder to watch</string>
+    <string name="add_source">Add folder</string>
+    <string name="remove_source">Remove folder</string>
+
+    <string name="target_title">Destination root</string>
+    <string name="save">Save</string>
 </resources>

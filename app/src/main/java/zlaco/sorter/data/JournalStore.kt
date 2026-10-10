@@ -135,7 +135,11 @@ class JournalStore(context: Context) {
 
     private companion object {
         const val DATABASE_NAME = "sorter-journal.db"
-        const val DATABASE_VERSION = 1
+
+        // 2 added mime_type. Bumped deliberately: an install over an earlier
+        // build without it would otherwise keep the old schema under the same
+        // version number, and every undo would then fail on a missing column.
+        const val DATABASE_VERSION = 2
         const val TABLE = "moves"
         const val COLUMN_ID = "media_id"
         const val COLUMN_NAME = "display_name"

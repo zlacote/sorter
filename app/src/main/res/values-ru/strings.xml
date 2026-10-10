@@ -30,6 +30,22 @@
 
     <string name="working">Работает…</string>
     <string name="result_moved">Перемещено: %1$d.</string>
+    <string name="result_already_sorted">Перемещать больше нечего. То, что было разложено раньше, уже лежит по папкам — смотрите «Историю».</string>
     <string name="result_nothing">Перемещать нечего.</string>
     <string name="needs_permission">Сначала выдайте разрешение.</string>
+
+    <string name="tab_sort">Сортировка</string>
+    <string name="tab_history">История</string>
+    <string name="tab_settings">Настройки</string>
+
+    <string name="history_count">Перемещений: %1$d</string>
+
+    <string name="sources_title">Папки-источники</string>
+    <string name="sources_summary">Сортируются файлы, лежащие прямо в этих папках. Путь указывайте без ведущего слэша, например DCIM/Screenshots.</string>
+    <string name="source_hint">Какую папку смотреть</string>
+    <string name="add_source">Добавить папку</string>
+    <string name="remove_source">Убрать папку</string>
+
+    <string name="target_title">Корневая папка назначения</string>
+    <string name="save">Сохранить</string>
 </resources>
