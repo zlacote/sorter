@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Sorter</string>
+
+    <string name="enable_title">Auto-sorting</string>
+    <string name="enable_summary">Move each new screenshot into a folder named after the app it came from.</string>
+
+    <string name="permission_title">Permission needed</string>
+    <string name="permission_summary">Sorter has to be allowed to manage files to move a screenshot it did not create. The switch is turned on by hand in the system settings; this is the only time it is asked for.</string>
+    <string name="open_settings">Open settings</string>
+
+    <string name="sort_now">Sort existing files now</string>
+    <string name="sort_now_summary">Runs once over everything already on the phone. Does not switch auto-sorting on.</string>
+
+    <string name="recordings_title">Include screen recordings</string>
+    <string name="recordings_summary">Screen recordings carry the same app name in their file name.</string>
+
+    <string name="status_title">Status</string>
+    <string name="status_never">Has not run yet.</string>
+    <string name="status_line">Last run %1$s · moved %2$d of %3$d</string>
+    <string name="status_failures">%1$d file(s) could not be moved.</string>
+    <string name="status_armed">Watching for new screenshots.</string>
+    <string name="status_not_armed">Not watching. Reopen the app after granting permission.</string>
+
+    <string name="history_title">History</string>
+    <string name="history_empty">Nothing moved yet.</string>
+    <string name="history_item">%1$s → %2$s</string>
+    <string name="undo">Undo</string>
+    <string name="undo_failed">Could not put it back.</string>
+
+    <string name="working">Working…</string>
+    <string name="result_moved">Moved %1$d file(s).</string>
+    <string name="result_nothing">Nothing to move.</string>
+    <string name="needs_permission">Grant permission first.</string>
+</resources>

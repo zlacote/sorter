@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!--
+      Merged into debug builds only. The automation hook the emulator test uses
+      never exists in a release APK, so there is no way to reach the sorter's
+      internals from outside the app in a shipped build.
+    -->
+    <application>
+        <receiver
+            android:name="zlaco.sorter.debug.DebugControlReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="zlaco.sorter.debug.ENABLE" />
+                <action android:name="zlaco.sorter.debug.RUN" />
+            </intent-filter>
+        </receiver>
+    </application>
+</manifest>

@@ -1,0 +1,215 @@
+name: ci
+
+on:
+  push:
+    branches: [main, master]
+    paths-ignore:
+      - '**.md'
+  pull_request:
+    branches: [main, master]
+    paths-ignore:
+      - '**.md'
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  JAVA_VERSION: '21'
+  GRADLE_VERSION: '8.9'
+  BUILD_TOOLS_VERSION: '35.0.0'
+  API_LEVEL: '35'
+  ANDROID_TARGET: 'google_apis'
+  ANDROID_ARCH: 'x86_64'
+  AVD_NAME: 'sorter_ci'
+  EMU_BOOT_TIMEOUT_SEC: '400'
+  GRADLE_OPTS: "-Dorg.gradle.daemon=false"
+
+jobs:
+  build:
+    name: build-apk
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      # Licenses are accepted by setup-android below; no duplicate step.
+      - uses: android-actions/setup-android@v4
+        with:
+          cmdline-tools-version: 11076708
+          accept-android-sdk-licenses: true
+
+      # No NDK or CMake: Sorter has no native code, unlike the workflow this
+      # was adapted from.
+      - name: Install SDK components
+        run: |
+          sdkmanager --install \
+            "platforms;android-35" \
+            "build-tools;${BUILD_TOOLS_VERSION}" \
+            "platform-tools"
+
+      # Debug keystore: AGP needs one to sign debug APKs; a fresh runner
+      # might not have ~/.android/debug.keystore yet.
+      - name: Ensure debug keystore
+        run: |
+          mkdir -p ~/.android
+          if [ ! -f ~/.android/debug.keystore ]; then
+            keytool -genkeypair -v \
+              -keystore ~/.android/debug.keystore \
+              -alias androiddebugkey \
+              -storepass android -keypass android \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -dname "CN=Android Debug,O=Android,C=US"
+          fi
+
+      # setup-gradle caches Gradle itself and dependency caches automatically.
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v5
+        with:
+          gradle-version: ${{ env.GRADLE_VERSION }}
+
+      # The core is where correctness lives and it has no Android dependencies,
+      # so the parsing and the move decisions are checked on every push rather
+      # than only on a device.
+      - name: Unit tests and APKs (debug + release)
+        run: gradle :app:testDebugUnitTest :app:assembleDebug :app:assembleRelease --stacktrace --warning-mode summary
+
+      - name: Sign APKs with apksigner
+        run: |
+          keytool -genkeypair -v \
+            -keystore signing.keystore \
+            -alias sorter \
+            -storepass sorter123 -keypass sorter123 \
+            -keyalg RSA -keysize 2048 -validity 10000 \
+            -dname "CN=Sorter,O=Sorter,C=US"
+          for APK in $(find app/build/outputs/apk -name "*.apk"); do
+            echo "Signing: $APK"
+            ${ANDROID_HOME}/build-tools/${BUILD_TOOLS_VERSION}/apksigner sign \
+              --ks signing.keystore \
+              --ks-key-alias sorter \
+              --ks-pass pass:sorter123 \
+              --key-pass pass:sorter123 \
+              --out "$APK" \
+              "$APK"
+            ${ANDROID_HOME}/build-tools/${BUILD_TOOLS_VERSION}/apksigner verify --verbose "$APK" | head -10
+          done
+          echo "APKs signed successfully"
+
+      - name: Collect outputs
+        run: |
+          mkdir -p build_out/apk
+          find app/build/outputs/apk/debug -name "*.apk" -print -quit \
+            | xargs -r -I{} cp {} build_out/apk/Sorter-debug.apk
+          find app/build/outputs/apk/release -name "*.apk" -print -quit \
+            | xargs -r -I{} cp {} build_out/apk/Sorter-arm64.apk
+          ls -lh build_out/apk/
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v7
+        with:
+          name: Sorter-debug-apk
+          path: build_out/apk/Sorter-debug.apk
+          if-no-files-found: error
+          compression-level: 0
+
+      - name: Upload arm64 APK (release, optimized)
+        uses: actions/upload-artifact@v7
+        with:
+          name: Sorter-arm64-apk
+          path: build_out/apk/Sorter-arm64.apk
+          if-no-files-found: error
+          compression-level: 0
+
+      - name: Upload unit test results
+        uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: unit-test-results
+          path: app/build/test-results/testDebugUnitTest
+          if-no-files-found: ignore
+
+  smoke:
+    name: emulator-e2e
+    runs-on: ubuntu-latest
+    needs: build
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - uses: android-actions/setup-android@v4
+        with:
+          cmdline-tools-version: 11076708
+          accept-android-sdk-licenses: true
+
+      - name: Install platform tools and build tools
+        run: |
+          sdkmanager --install "platform-tools" "build-tools;${BUILD_TOOLS_VERSION}" "platforms;android-${API_LEVEL}"
+          echo "${ANDROID_HOME}/platform-tools" >> $GITHUB_PATH
+          echo "${ANDROID_HOME}/build-tools/${BUILD_TOOLS_VERSION}" >> $GITHUB_PATH
+
+      - name: Download APK
+        uses: actions/download-artifact@v8
+        with:
+          name: Sorter-debug-apk
+          path: downloaded_apk
+
+      - name: Locate APK
+        run: |
+          mkdir -p emulator_work
+          cp "$(find downloaded_apk -name '*.apk' -print -quit)" emulator_work/app.apk
+          echo "APK_PATH=${GITHUB_WORKSPACE}/emulator_work/app.apk" >> $GITHUB_ENV
+
+      - name: Enable KVM
+        run: |
+          if [ -e /dev/kvm ]; then
+            sudo chmod 666 /dev/kvm
+            echo "KVM enabled"
+          else
+            echo "KVM not available"
+          fi
+
+      - name: Make smoke script executable
+        run: chmod +x ci/emulator_run.sh
+
+      # Not a launch check. This places a file named like a real screenshot,
+      # lets the app sort it, and then verifies on disk that it landed in the
+      # right folder and stayed there through repeated passes.
+      - name: Boot emulator and run the end-to-end sort check
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ env.API_LEVEL }}
+          target: ${{ env.ANDROID_TARGET }}
+          arch: ${{ env.ANDROID_ARCH }}
+          avd-name: ${{ env.AVD_NAME }}
+          force-avd-creation: true
+          disable-linux-hw-accel: false
+          emulator-options: >
+            -no-window
+            -no-audio
+            -no-boot-anim
+            -gpu swiftshader_indirect
+            -no-snapshot-save
+            -no-metrics
+            -memory 4096
+            -accel on
+          emulator-boot-timeout: ${{ env.EMU_BOOT_TIMEOUT_SEC }}
+          script: ./ci/emulator_run.sh
+
+      - name: Upload emulator data
+        uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: emulator-data
+          path: emulator_logs
+          if-no-files-found: warn
