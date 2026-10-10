@@ -80,13 +80,24 @@ core/        pure Kotlin. Name parsing, folder naming, move decisions.
 data/        MediaStore reads and moves, SQLite journal, settings.
 domain/      one pass: rescan, decide, move, record.
 watch/       content trigger, safety net, re-arm after reboot.
-ui/          Compose. A switch, permission buttons, history with undo.
+ui/          Compose. Sorting, History and Settings tabs.
 ```
 
 Each pass works from a rescan of what is actually on disk, not from the list of
 files a change notification mentioned. A notification lost to a killed process
 costs nothing: the next pass sees the file anyway. Notifications decide *when* a
 pass happens, never *what* it acts on.
+
+Passes are serialised process-wide. The trigger, the safety net and the manual
+button each run one, and two of them reading the journal at the same moment
+would both decide to move the same file — the second would then fail on a row
+the first had already taken.
+
+Source folders and the destination root are editable in Settings. The defaults
+are where a Samsung puts captures; a stock device uses `Pictures/Screenshots`.
+What you type is normalised the same way the query normalises it, so
+`DCIM/Screenshots` and `DCIM/Screenshots/` are the same folder rather than one
+of them silently matching nothing.
 
 ## Permission
 
@@ -117,10 +128,6 @@ gradle :app:testDebugUnitTest :app:assembleDebug :app:assembleRelease
 
 ## Limits
 
-- **One UI by default.** The source folders default to `DCIM/Screenshots/` and
-  `DCIM/Screen recordings/`, which is where a Samsung puts them. A stock device
-  uses `Pictures/Screenshots/`. They are settings, not constants, but there is
-  no screen for editing them yet.
 - **Screenshots the shell wrote while another app was in front** carry that
   other app's name, which is the shell's call and not something Sorter can
   second-guess.
@@ -128,3 +135,10 @@ gradle :app:testDebugUnitTest :app:assembleDebug :app:assembleRelease
   move, but the gallery's own view may lag. Worth checking on the device.
 - **No rename.** The file keeps its name. The app is already in the folder name,
   so stripping it would lose information for no gain.
+- **One volume.** Reads go through the union of external volumes, and a move is
+  addressed by the media id, which carries its own volume. A screenshot on an SD
+  card has not been exercised.
+- **The trigger has been seen going quiet on some devices** after long sleep.
+  The safety net bounds the damage to fifteen minutes, and the status line makes
+  it visible rather than silent, but it is not proof the trigger is reliable
+  everywhere.
