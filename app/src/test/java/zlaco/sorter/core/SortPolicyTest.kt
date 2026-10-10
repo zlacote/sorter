@@ -19,6 +19,7 @@ class SortPolicyTest {
         id = id,
         displayName = name,
         relativePath = path,
+        mimeType = "image/png",
         capturedAtMillis = 0L,
     )
 

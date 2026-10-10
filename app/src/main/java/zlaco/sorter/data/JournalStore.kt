@@ -21,6 +21,7 @@ class JournalStore(context: Context) {
                 CREATE TABLE $TABLE (
                     $COLUMN_ID INTEGER PRIMARY KEY,
                     $COLUMN_NAME TEXT NOT NULL,
+                    $COLUMN_MIME TEXT NOT NULL,
                     $COLUMN_APP TEXT NOT NULL,
                     $COLUMN_FROM TEXT NOT NULL,
                     $COLUMN_TO TEXT NOT NULL,
@@ -55,6 +56,7 @@ class JournalStore(context: Context) {
             ContentValues().apply {
                 put(COLUMN_ID, move.mediaId)
                 put(COLUMN_NAME, move.displayName)
+                put(COLUMN_MIME, move.mimeType)
                 put(COLUMN_APP, move.appLabel)
                 put(COLUMN_FROM, move.fromRelativePath)
                 put(COLUMN_TO, move.toRelativePath)
@@ -82,6 +84,7 @@ class JournalStore(context: Context) {
                         MoveRecord(
                             mediaId = cursor.getLong(cursor.getColumnIndexOrThrow(COLUMN_ID)),
                             displayName = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_NAME)),
+                            mimeType = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_MIME)),
                             appLabel = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_APP)),
                             fromRelativePath = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_FROM)),
                             toRelativePath = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_TO)),
@@ -108,6 +111,7 @@ class JournalStore(context: Context) {
             MoveRecord(
                 mediaId = cursor.getLong(cursor.getColumnIndexOrThrow(COLUMN_ID)),
                 displayName = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_NAME)),
+                mimeType = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_MIME)),
                 appLabel = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_APP)),
                 fromRelativePath = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_FROM)),
                 toRelativePath = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_TO)),
@@ -135,6 +139,7 @@ class JournalStore(context: Context) {
         const val TABLE = "moves"
         const val COLUMN_ID = "media_id"
         const val COLUMN_NAME = "display_name"
+        const val COLUMN_MIME = "mime_type"
         const val COLUMN_APP = "app_label"
         const val COLUMN_FROM = "from_path"
         const val COLUMN_TO = "to_path"

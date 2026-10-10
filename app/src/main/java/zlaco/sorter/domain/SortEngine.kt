@@ -69,11 +69,12 @@ class SortEngine(context: Context) {
             }
             val plan = (verdict as SortVerdict.Move)
 
-            when (val outcome = gateway.move(candidate.id, plan.targetRelativePath)) {
+            when (val outcome = gateway.move(candidate.id, candidate.mimeType, plan.targetRelativePath)) {
                 is MoveOutcome.Moved -> {
                     val record = MoveRecord(
                         mediaId = candidate.id,
                         displayName = candidate.displayName,
+                        mimeType = candidate.mimeType,
                         appLabel = plan.appLabel,
                         fromRelativePath = candidate.relativePath,
                         toRelativePath = plan.targetRelativePath,
@@ -93,7 +94,7 @@ class SortEngine(context: Context) {
 
     /** Puts a file back where it came from. The journal entry is dropped only once it lands. */
     suspend fun undo(record: MoveRecord): Boolean = withContext(Dispatchers.IO) {
-        when (gateway.move(record.mediaId, record.fromRelativePath)) {
+        when (gateway.move(record.mediaId, record.mimeType, record.fromRelativePath)) {
             is MoveOutcome.Moved -> {
                 journal.forget(record.mediaId)
                 true

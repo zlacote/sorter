@@ -5,6 +5,7 @@ data class MediaCandidate(
     val id: Long,
     val displayName: String,
     val relativePath: String,
+    val mimeType: String,
     val capturedAtMillis: Long,
 )
 
