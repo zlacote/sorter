@@ -167,6 +167,7 @@ private fun PillNavigationBar(current: Tab, onSelect: (Tab) -> Unit) {
     }
 }
 
+@Composable
 private fun Tab.toPillItem(
     current: Tab,
     onSelect: (Tab) -> Unit,

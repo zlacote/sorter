@@ -7,6 +7,7 @@ import android.os.Build
 import android.os.LocaleList
 import android.provider.Settings
 import androidx.annotation.StringRes
+import zlaco.sorter.R
 import java.util.Locale
 
 /**
