@@ -53,8 +53,15 @@ fi
 
 # The permission the app is built around. Granted here so the test exercises the
 # real code path rather than an error branch.
-adb shell appops set "$PKG" MANAGE_EXTERNAL_STORAGE allow \
+adb shell appops set --uid "$PKG" MANAGE_EXTERNAL_STORAGE allow \
   > "$LOG_DIR/appops.txt" 2>&1 || true
+adb shell appops set "$PKG" MANAGE_EXTERNAL_STORAGE allow \
+  >> "$LOG_DIR/appops.txt" 2>&1 || true
+# Read the grant back instead of trusting the command. An appop that silently
+# did not take is indistinguishable from a permission problem inside the app:
+# the provider just returns fewer rows and never throws.
+adb shell appops get "$PKG" MANAGE_EXTERNAL_STORAGE \
+  >> "$LOG_DIR/appops.txt" 2>&1 || true
 timeout 5 adb logcat -c || true
 
 adb shell am start -W -n "$PKG/zlaco.sorter.ui.MainActivity" \

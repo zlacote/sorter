@@ -5,6 +5,7 @@ import android.content.ContentUris
 import android.content.ContentValues
 import android.database.Cursor
 import android.net.Uri
+import android.os.Environment
 import android.provider.MediaStore
 import android.util.Log
 import zlaco.sorter.core.MediaCandidate
@@ -48,6 +49,12 @@ class MediaStoreGateway(private val resolver: ContentResolver) {
     fun candidatesIn(folders: Set<String>): List<MediaCandidate> {
         val normalized = folders.map(SortPolicy::normalize).filter { it.isNotEmpty() }
         if (normalized.isEmpty()) return emptyList()
+
+        // A media store query is filtered rather than refused when the caller
+        // lacks access: it simply returns nothing and throws nothing. Reporting
+        // the grant alongside the count is the only way to tell "no screenshots
+        // there" apart from "not allowed to look".
+        Log.d(TAG, "allFilesAccess=${Environment.isExternalStorageManager()} folders=$normalized")
 
         val selection = normalized.joinToString(
             separator = " OR ",
