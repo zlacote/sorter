@@ -3,6 +3,7 @@ package zlaco.sorter.ui
 import android.text.format.DateUtils
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
@@ -10,6 +11,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
@@ -129,18 +131,17 @@ fun MainScreen(
 }
 
 /**
- * Shared shape for the single-screen tabs: scrollable, width-capped and
- * centred on the long axis when there is little to show, so a screen with a
- * switch and a button does not look abandoned at the top of a tall display.
+ * Shared shape for the tabs that are shorter than the screen: scrollable,
+ * width-capped, and anchored to the top rather than centred, so a long settings
+ * list starts where the eye expects instead of drifting down the page.
  */
 @Composable
-private fun CenteredTab(content: @Composable ColumnScope.() -> Unit) {
+private fun ScrollableTab(content: @Composable ColumnScope.() -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 16.dp),
-        verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Column(
@@ -152,6 +153,57 @@ private fun CenteredTab(content: @Composable ColumnScope.() -> Unit) {
     }
 }
 
+/**
+ * The sorting screen: switch at the top, status in the middle, the one action
+ * that matters at the very bottom.
+ *
+ * The flexible space between the three groups is what does it. Equal weights
+ * centre the status in whatever room is left, and the button stays on the floor
+ * of the screen no matter how short the content above it is. `heightIn` with
+ * the viewport height is what lets weights and scrolling coexist: without it a
+ * scrollable column has unbounded height, every weight would resolve to zero,
+ * and the layout would silently fall back to a plain stack.
+ */
+@Composable
+private fun FullHeightTab(
+    top: @Composable ColumnScope.() -> Unit,
+    middle: @Composable ColumnScope.() -> Unit,
+    bottom: @Composable ColumnScope.() -> Unit,
+) {
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val viewportHeight = maxHeight
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .heightIn(min = viewportHeight)
+                .padding(horizontal = 16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Column(
+                modifier = Modifier
+                    .widthIn(max = CONTENT_MAX_WIDTH)
+                    .fillMaxWidth(),
+                content = top,
+            )
+            Spacer(Modifier.weight(1f))
+            Column(
+                modifier = Modifier
+                    .widthIn(max = CONTENT_MAX_WIDTH)
+                    .fillMaxWidth(),
+                content = middle,
+            )
+            Spacer(Modifier.weight(1f))
+            Column(
+                modifier = Modifier
+                    .widthIn(max = CONTENT_MAX_WIDTH)
+                    .fillMaxWidth(),
+                content = bottom,
+            )
+        }
+    }
+}
+
 @Composable
 private fun SortTab(
     state: UiState,
@@ -159,43 +211,44 @@ private fun SortTab(
     onOpenSettings: () -> Unit,
     onSortNow: () -> Unit,
 ) {
-    CenteredTab {
-        Spacer(Modifier.height(24.dp))
-
-        SwitchRow(
-            title = stringResource(R.string.enable_title),
-            summary = stringResource(R.string.enable_summary),
-            checked = state.enabled,
-            onCheckedChange = onEnabledChange,
-        )
-
-        if (state.showPermissionAction) {
-            Spacer(Modifier.height(12.dp))
-            PermissionCard(onOpenSettings = onOpenSettings)
-        }
-
-        Spacer(Modifier.height(12.dp))
-        OutlinedButton(
-            onClick = onSortNow,
-            enabled = !state.isWorking && state.hasPermission,
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Text(
-                text = stringResource(if (state.isWorking) R.string.working else R.string.sort_now),
-                textAlign = TextAlign.Center,
+    FullHeightTab(
+        top = {
+            Spacer(Modifier.height(24.dp))
+            SwitchRow(
+                title = stringResource(R.string.enable_title),
+                summary = stringResource(R.string.enable_summary),
+                checked = state.enabled,
+                onCheckedChange = onEnabledChange,
             )
-        }
-
-        Spacer(Modifier.height(12.dp))
-        StatusSection(state)
-        Spacer(Modifier.height(24.dp))
-    }
+            // Sits with the switch rather than at the bottom: it is the one
+            // thing standing between the user and the app working at all.
+            if (state.showPermissionAction) {
+                Spacer(Modifier.height(12.dp))
+                PermissionCard(onOpenSettings = onOpenSettings)
+            }
+        },
+        middle = { StatusSection(state) },
+        bottom = {
+            OutlinedButton(
+                onClick = onSortNow,
+                enabled = !state.isWorking && state.hasPermission,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(
+                    text = stringResource(if (state.isWorking) R.string.working else R.string.sort_now),
+                    textAlign = TextAlign.Center,
+                )
+            }
+            Spacer(Modifier.height(24.dp))
+        },
+    )
 }
 
 @Composable
 private fun HistoryTab(moves: List<MoveRecord>, onUndo: (MoveRecord) -> Unit) {
     if (moves.isEmpty()) {
-        CenteredTab {
+        ScrollableTab {
+            Spacer(Modifier.height(48.dp))
             Text(
                 text = stringResource(R.string.history_empty),
                 style = MaterialTheme.typography.bodyLarge,
@@ -245,7 +298,7 @@ private fun SettingsTab(state: UiState, viewModel: MainViewModel) {
         if (viewModel.isTargetRoot(targetDraft)) targetDraft = state.targetRoot
     }
 
-    CenteredTab {
+    ScrollableTab {
         Spacer(Modifier.height(24.dp))
 
         Text(
@@ -324,16 +377,6 @@ private fun SettingsTab(state: UiState, viewModel: MainViewModel) {
             Text(stringResource(R.string.save))
         }
 
-        Spacer(Modifier.height(20.dp))
-        HorizontalDivider()
-        Spacer(Modifier.height(20.dp))
-
-        SwitchRow(
-            title = stringResource(R.string.recordings_title),
-            summary = stringResource(R.string.recordings_summary),
-            checked = state.includeRecordings,
-            onCheckedChange = viewModel::setIncludeRecordings,
-        )
 
         Spacer(Modifier.height(24.dp))
     }

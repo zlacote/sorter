@@ -39,7 +39,6 @@ data class UiState(
     val enabled: Boolean = false,
     val hasPermission: Boolean = false,
     val isArmed: Boolean = false,
-    val includeRecordings: Boolean = true,
     val isWorking: Boolean = false,
     val lastRun: LastRun? = null,
     val moves: List<MoveRecord> = emptyList(),
@@ -90,7 +89,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     enabled = enabled,
                     hasPermission = hasPermission,
                     isArmed = enabled && hasPermission,
-                    includeRecordings = settings.includeScreenRecordings,
                     sourceFolders = settings.sourceFolders.sorted(),
                     targetRoot = settings.targetRoot,
                     lastRun = settings.lastRunAtMillis
@@ -121,12 +119,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun setIncludeRecordings(include: Boolean) {
-        viewModelScope.launch {
-            settings.includeScreenRecordings = include
-            refresh()
-        }
-    }
 
     /** One pass over everything already on the phone, independent of the switch. */
     fun sortNow() {

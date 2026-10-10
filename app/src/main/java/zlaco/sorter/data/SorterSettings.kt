@@ -18,10 +18,6 @@ class SorterSettings(context: Context) {
         get() = prefs.getBoolean(KEY_ENABLED, false)
         set(value) = prefs.edit().putBoolean(KEY_ENABLED, value).apply()
 
-    var includeScreenRecordings: Boolean
-        get() = prefs.getBoolean(KEY_RECORDINGS, true)
-        set(value) = prefs.edit().putBoolean(KEY_RECORDINGS, value).apply()
-
     var targetRoot: String
         get() = prefs.getString(KEY_TARGET_ROOT, DEFAULT_TARGET_ROOT) ?: DEFAULT_TARGET_ROOT
         set(value) = prefs.edit().putString(KEY_TARGET_ROOT, value).apply()
@@ -33,7 +29,6 @@ class SorterSettings(context: Context) {
     fun sortConfig(): SortConfig = SortConfig(
         sourceFolders = sourceFolders,
         targetRoot = targetRoot,
-        includeScreenRecordings = includeScreenRecordings,
     )
 
     /**
@@ -69,7 +64,6 @@ class SorterSettings(context: Context) {
     private companion object {
         const val NAME = "sorter"
         const val KEY_ENABLED = "enabled"
-        const val KEY_RECORDINGS = "include_recordings"
         const val KEY_TARGET_ROOT = "target_root"
         const val KEY_SOURCES = "source_folders"
         const val KEY_LAST_RUN_AT = "last_run_at"

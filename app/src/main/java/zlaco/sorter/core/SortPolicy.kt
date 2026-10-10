@@ -13,7 +13,6 @@ data class MediaCandidate(
 data class SortConfig(
     val sourceFolders: Set<String>,
     val targetRoot: String,
-    val includeScreenRecordings: Boolean,
 )
 
 enum class SkipReason {
@@ -24,7 +23,6 @@ enum class SkipReason {
     NOT_A_CAPTURE,
     NO_APP_LABEL,
     UNUSABLE_FOLDER_NAME,
-    RECORDINGS_EXCLUDED,
 }
 
 sealed interface SortVerdict {
@@ -73,10 +71,6 @@ object SortPolicy {
         // files stay put and show up in the log instead of being misfiled.
         if (parsed.kind == CaptureKind.UNKNOWN) {
             return SortVerdict.Skip(SkipReason.NOT_A_CAPTURE)
-        }
-
-        if (parsed.kind == CaptureKind.SCREEN_RECORDING && !config.includeScreenRecordings) {
-            return SortVerdict.Skip(SkipReason.RECORDINGS_EXCLUDED)
         }
 
         val label = parsed.appLabel ?: return SortVerdict.Skip(SkipReason.NO_APP_LABEL)

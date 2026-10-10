@@ -8,7 +8,6 @@ class SortPolicyTest {
     private val config = SortConfig(
         sourceFolders = setOf("DCIM/Screenshots/", "DCIM/Screen recordings/"),
         targetRoot = "Pictures/AppScreenshots/",
-        includeScreenRecordings = true,
     )
 
     private fun candidate(
@@ -62,19 +61,6 @@ class SortPolicyTest {
             SortVerdict.Move("Brawl Stars", "Brawl Stars", "Pictures/AppScreenshots/Brawl Stars/"),
             verdict,
         )
-    }
-
-    @Test
-    fun `leaves recordings alone when they are switched off`() {
-        val verdict = decide(
-            candidate(
-                name = "Screen_Recording_20260928_220747_Brawl Stars.mp4",
-                path = "DCIM/Screen recordings/",
-            ),
-            config = config.copy(includeScreenRecordings = false),
-        )
-
-        assertEquals(SortVerdict.Skip(SkipReason.RECORDINGS_EXCLUDED), verdict)
     }
 
     @Test

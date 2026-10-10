@@ -12,8 +12,6 @@
     <string name="sort_now">Отсортировать уже имеющиеся</string>
     <string name="sort_now_summary">Один раз пройдёт по всему, что уже лежит на телефоне. Автосортировку при этом не включает.</string>
 
-    <string name="recordings_title">Записи экрана</string>
-    <string name="recordings_summary">В имени записи экрана название приложения тоже есть.</string>
 
     <string name="status_title">Состояние</string>
     <string name="status_never">Ещё ни разу не запускалась.</string>

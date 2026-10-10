@@ -12,8 +12,6 @@
     <string name="sort_now">Sort existing files now</string>
     <string name="sort_now_summary">Runs once over everything already on the phone. Does not switch auto-sorting on.</string>
 
-    <string name="recordings_title">Include screen recordings</string>
-    <string name="recordings_summary">Screen recordings carry the same app name in their file name.</string>
 
     <string name="status_title">Status</string>
     <string name="status_never">Has not run yet.</string>
