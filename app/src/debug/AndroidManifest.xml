@@ -11,6 +11,7 @@
             android:exported="true">
             <intent-filter>
                 <action android:name="zlaco.sorter.debug.ENABLE" />
+                <action android:name="zlaco.sorter.debug.SCAN" />
                 <action android:name="zlaco.sorter.debug.RUN" />
             </intent-filter>
         </receiver>

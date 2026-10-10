@@ -22,8 +22,11 @@ PKG="zlaco.sorter"
 # what parses it, so the probe has to look like the real thing.
 PROBE_APP="CIProbe"
 PROBE_NAME="Screenshot_20261010_064921_${PROBE_APP}.png"
-SRC="/sdcard/DCIM/Screenshots/${PROBE_NAME}"
-DST="/sdcard/Pictures/AppScreenshots/${PROBE_APP}/${PROBE_NAME}"
+# The canonical path, not the /sdcard symlink: the media store records and
+# matches on the real one, and mixing the two is how a probe ends up invisible.
+ROOT="/storage/emulated/0"
+SRC="${ROOT}/DCIM/Screenshots/${PROBE_NAME}"
+DST="${ROOT}/Pictures/AppScreenshots/${PROBE_APP}/${PROBE_NAME}"
 
 collect_on_exit() {
   adb devices -l > "$LOG_DIR/adb_devices_exit.txt" 2>&1 || true
@@ -63,7 +66,7 @@ if ! timeout 5 adb shell pidof "$PKG" >/dev/null 2>&1; then
 fi
 
 # A 1x1 PNG. Content is irrelevant, the sorter reads names, not pixels.
-adb shell "mkdir -p /sdcard/DCIM/Screenshots" >/dev/null 2>&1 || true
+adb shell "mkdir -p ${ROOT}/DCIM/Screenshots" >/dev/null 2>&1 || true
 printf '%s' \
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==' \
   | base64 -d > "$LOG_DIR/probe.png"
@@ -71,17 +74,34 @@ printf '%s' \
 adb push "$LOG_DIR/probe.png" "$SRC" > "$LOG_DIR/push.txt" 2>&1 \
   || fail "could not place the probe file"
 
-# Writing to shared storage does not reliably register the file on its own, and
-# an unregistered file is invisible to the engine. Ask the media store to look.
-adb shell content call --uri content://media --method scan_volume --arg external_primary \
-  > "$LOG_DIR/scan.txt" 2>&1 || true
-
 adb shell am broadcast -a zlaco.sorter.debug.ENABLE -p "$PKG" \
   > "$LOG_DIR/enable.txt" 2>&1 || true
 sleep 1
 
-# Poll, re-running a pass each round. The retry covers both the delay before the
-# media store indexes the file and any jitter in the app's own wake-up.
+# Ask the platform to index the file through its own API rather than hoping a
+# shell write gets noticed. Until the store knows about the row there is
+# nothing for the engine to act on, so this stage is verified on its own.
+INDEXED=0
+for i in $(seq 1 15); do
+  adb shell am broadcast -a zlaco.sorter.debug.SCAN -p "$PKG" --es path "$SRC" \
+    >/dev/null 2>&1 || true
+  sleep 2
+  ROWS=$(adb shell content query --uri content://media/external/images/media \
+    --projection _id:DISPLAY_NAME:RELATIVE_PATH \
+    --where "DISPLAY_NAME='${PROBE_NAME}'" 2>/dev/null | tr -d '\r')
+  case "$ROWS" in
+    *"${PROBE_APP}"*) INDEXED=1; break ;;
+  esac
+done
+
+# Always keep what the store actually held, so a failure says which stage broke.
+adb shell content query --uri content://media/external/images/media \
+  --projection _id:DISPLAY_NAME:RELATIVE_PATH \
+  > "$LOG_DIR/mediastore_dump.txt" 2>&1 || true
+
+[ "$INDEXED" = "1" ] || fail "the media store never indexed the probe; see mediastore_dump.txt"
+
+# Poll, re-running a pass each round, in case the app's own wake-up is slow.
 MOVED=0
 for i in $(seq 1 20); do
   adb shell am broadcast -a zlaco.sorter.debug.RUN -p "$PKG" >/dev/null 2>&1 || true
@@ -111,7 +131,7 @@ if ! adb shell "ls '$DST'" >/dev/null 2>&1; then
 fi
 
 # Nothing should have piled up next to the original.
-STRAY=$(adb shell "ls /sdcard/Pictures/AppScreenshots/${PROBE_APP}/ | wc -l" 2>/dev/null | tr -d '\r')
+STRAY=$(adb shell "ls ${ROOT}/Pictures/AppScreenshots/${PROBE_APP}/ | wc -l" 2>/dev/null | tr -d '\r')
 echo "files_in_target=${STRAY}" >> "$LOG_DIR/result.txt"
 [ "$STRAY" = "1" ] || fail "expected exactly one file in the target folder, found ${STRAY}"
 

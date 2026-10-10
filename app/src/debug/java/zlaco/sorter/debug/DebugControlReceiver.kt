@@ -3,10 +3,12 @@ package zlaco.sorter.debug
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.provider.MediaStore
 import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import zlaco.sorter.data.SorterSettings
 import zlaco.sorter.domain.SortEngine
 import zlaco.sorter.watch.WatchScheduler
@@ -32,6 +34,31 @@ class DebugControlReceiver : BroadcastReceiver() {
                 Log.i(TAG, "debug: enabled and armed")
             }
 
+            // Pushing a file through adb does not reliably land it in the media
+            // index, and a file the store does not know about is invisible to
+            // the engine, so the test would be measuring the shell rather than
+            // the sorter. This asks the platform to index it properly.
+            ACTION_SCAN -> {
+                val path = intent.getStringExtra(EXTRA_PATH).orEmpty()
+                if (path.isEmpty()) {
+                    Log.w(TAG, "debug: SCAN without a path")
+                    return
+                }
+                val pending = goAsync()
+                CoroutineScope(Dispatchers.IO).launch {
+                    try {
+                        val scanned = withContext(Dispatchers.IO) {
+                            runCatching { MediaStore.scanFile(context, arrayOf(path), null) }
+                                .onFailure { Log.e(TAG, "debug: scan of $path failed", it) }
+                                .getOrDefault(0)
+                        }
+                        Log.i(TAG, "debug: scanned ${scanned} file(s) for $path")
+                    } finally {
+                        pending.finish()
+                    }
+                }
+            }
+
             ACTION_RUN -> {
                 val pending = goAsync()
                 CoroutineScope(Dispatchers.IO).launch {
@@ -40,7 +67,7 @@ class DebugControlReceiver : BroadcastReceiver() {
                         Log.i(
                             TAG,
                             "debug: pass scanned=${report.scanned} moved=${report.movedCount} " +
-                                "failures=${report.failures.size}",
+                                "skipped=${report.skipped} failures=${report.failures}",
                         )
                     } catch (error: Throwable) {
                         Log.e(TAG, "debug: pass failed", error)
@@ -54,7 +81,9 @@ class DebugControlReceiver : BroadcastReceiver() {
 
     companion object {
         const val ACTION_ENABLE = "zlaco.sorter.debug.ENABLE"
+        const val ACTION_SCAN = "zlaco.sorter.debug.SCAN"
         const val ACTION_RUN = "zlaco.sorter.debug.RUN"
+        const val EXTRA_PATH = "path"
         private const val TAG = "DebugControl"
     }
 }
