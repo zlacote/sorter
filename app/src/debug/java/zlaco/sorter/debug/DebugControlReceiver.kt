@@ -3,12 +3,11 @@ package zlaco.sorter.debug
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.provider.MediaStore
+import android.media.MediaScannerConnection
 import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import zlaco.sorter.data.SorterSettings
 import zlaco.sorter.domain.SortEngine
 import zlaco.sorter.watch.WatchScheduler
@@ -47,12 +46,11 @@ class DebugControlReceiver : BroadcastReceiver() {
                 val pending = goAsync()
                 CoroutineScope(Dispatchers.IO).launch {
                     try {
-                        val scanned = withContext(Dispatchers.IO) {
-                            runCatching { MediaStore.scanFile(context, arrayOf(path), null) }
-                                .onFailure { Log.e(TAG, "debug: scan of $path failed", it) }
-                                .getOrDefault(0)
+                        MediaScannerConnection.scanFile(context, arrayOf(path), null) { scanned, uri ->
+                            Log.i(TAG, "debug: scanned $scanned -> $uri")
                         }
-                        Log.i(TAG, "debug: scanned ${scanned} file(s) for $path")
+                    } catch (error: Throwable) {
+                        Log.e(TAG, "debug: scan of $path failed", error)
                     } finally {
                         pending.finish()
                     }
