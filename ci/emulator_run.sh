@@ -92,9 +92,11 @@ for i in $(seq 1 15); do
   adb shell am broadcast -a zlaco.sorter.debug.SCAN -p "$PKG" --es path "$SRC" \
     >/dev/null 2>&1 || true
   sleep 2
-  ROWS=$(adb shell content query --uri "$MEDIA_URI" \
-    --projection "$MEDIA_COLUMNS" \
-    --where "_display_name='${PROBE_NAME}'" 2>/dev/null | tr -d '\r')
+  # No --where: the media provider parses selection clauses strictly and rejects
+  # shapes it does not expect, which returns nothing and reads exactly like an
+  # empty table. An emulator holds almost no media, so matching on the output is
+  # simpler and cannot fail that way.
+  ROWS=$(adb shell content query --uri "$MEDIA_URI" --projection "$MEDIA_COLUMNS" 2>/dev/null | tr -d '\r')
   case "$ROWS" in
     *"${PROBE_APP}"*) INDEXED=1; break ;;
   esac
