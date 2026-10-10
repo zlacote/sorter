@@ -10,7 +10,6 @@
     <string name="open_settings">Открыть настройки</string>
 
     <string name="sort_now">Отсортировать уже имеющиеся</string>
-    <string name="sort_now_summary">Один раз пройдёт по всему, что уже лежит на телефоне. Автосортировку при этом не включает.</string>
 
 
     <string name="status_title">Состояние</string>
@@ -20,7 +19,6 @@
     <string name="status_armed">Следит за новыми скриншотами.</string>
     <string name="status_not_armed">Не следит. Откройте приложение после выдачи разрешения.</string>
 
-    <string name="history_title">История</string>
     <string name="history_empty">Пока ничего не перемещено.</string>
     <string name="history_item">%1$s → %2$s</string>
     <string name="undo">Вернуть</string>
@@ -28,8 +26,8 @@
 
     <string name="working">Работает…</string>
     <string name="result_moved">Перемещено: %1$d.</string>
-    <string name="result_already_sorted">Перемещать больше нечего. То, что было разложено раньше, уже лежит по папкам — смотрите «Историю».</string>
-    <string name="result_nothing">Перемещать нечего.</string>
+    <string name="result_sources_empty">Сортировать нечего — в папках-источниках пусто.</string>
+    <string name="result_nothing_movable">Проверено файлов: %1$d, ни один не подошёл под правило.</string>
     <string name="needs_permission">Сначала выдайте разрешение.</string>
 
     <string name="tab_sort">Сортировка</string>
@@ -46,4 +44,9 @@
 
     <string name="target_title">Корневая папка назначения</string>
     <string name="save">Сохранить</string>
+    <string name="language_title">Язык</string>
+    <string name="language_system">Как в системе</string>
+    <string name="language_english">English</string>
+    <string name="language_russian">Русский</string>
+    <string name="language_note">Android 13 и новее. На более старых версиях откроются системные настройки языка.</string>
 </resources>

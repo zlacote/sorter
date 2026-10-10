@@ -1,6 +1,7 @@
 package zlaco.sorter.domain
 
 import android.content.Context
+import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -93,7 +94,12 @@ class SortEngine(context: Context) {
                         toRelativePath = plan.targetRelativePath,
                         movedAtMillis = System.currentTimeMillis(),
                     )
-                    journal.record(record)
+                    // The file has already moved by this point. A journal write
+                    // that fails must not abort the pass or drop the rest of
+                    // the batch, so it is contained here rather than allowed to
+                    // travel up and cancel work that already succeeded.
+                    runCatching { journal.record(record) }
+                        .onFailure { Log.w(TAG, "could not journal ${record.displayName}", it) }
                     moved += record
                 }
 
@@ -124,6 +130,8 @@ class SortEngine(context: Context) {
     fun settings(): SorterSettings = settings
 
     private companion object {
+        const val TAG = "SortEngine"
+
         val passMutex = Mutex()
     }
 }

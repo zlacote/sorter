@@ -25,12 +25,13 @@ sealed interface Notice {
     data class Moved(val count: Int) : Notice
 
     /**
-     * Nothing to do now, but the journal says files were sorted earlier. Saying
-     * only "nothing to move" here reads as a failure when the app is in fact
-     * working, which is the worst possible thing for a background tool to do.
+     * Nothing moved, and the reason is stated rather than implied. "Nothing to
+     * move" reads as a failure to anyone who just watched files fly into their
+     * folders, so the count that was actually looked at goes with it: zero
+     * means the source folders are empty, which is the expected state after
+     * everything has already been sorted.
      */
-    data object AlreadySorted : Notice
-    data object NothingToDo : Notice
+    data class NothingMoved(val scanned: Int) : Notice
     data object NeedsPermission : Notice
     data object UndoFailed : Notice
 }
@@ -44,6 +45,7 @@ data class UiState(
     val moves: List<MoveRecord> = emptyList(),
     val sourceFolders: List<String> = emptyList(),
     val targetRoot: String = "",
+    val languageTag: String = "system",
     val notice: Notice? = null,
 ) {
     /**
@@ -91,6 +93,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     isArmed = enabled && hasPermission,
                     sourceFolders = settings.sourceFolders.sorted(),
                     targetRoot = settings.targetRoot,
+                    languageTag = AppLanguage.current(getApplication()),
                     lastRun = settings.lastRunAtMillis
                         .takeIf { it > 0L }
                         ?.let { at ->
@@ -136,10 +139,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     moves = history,
                     notice = when {
                         report.movedCount > 0 -> Notice.Moved(report.movedCount)
-                        // Auto-sorting may well have done this work before the
-                        // button was ever pressed. Report that, not a failure.
-                        history.isNotEmpty() -> Notice.AlreadySorted
-                        else -> Notice.NothingToDo
+                        else -> Notice.NothingMoved(report.scanned)
                     },
                 )
             }
@@ -178,6 +178,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     /** True when the edited text is already what is stored, so the field can reset. */
     fun isTargetRoot(raw: String): Boolean = SortPolicy.normalize(raw) == settings.targetRoot
+
+    fun setLanguage(tag: String) {
+        AppLanguage.apply(getApplication(), tag)
+        refresh()
+    }
 
     fun undo(record: MoveRecord) {
         viewModelScope.launch {

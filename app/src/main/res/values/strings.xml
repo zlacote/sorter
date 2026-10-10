@@ -10,7 +10,6 @@
     <string name="open_settings">Open settings</string>
 
     <string name="sort_now">Sort existing files now</string>
-    <string name="sort_now_summary">Runs once over everything already on the phone. Does not switch auto-sorting on.</string>
 
 
     <string name="status_title">Status</string>
@@ -20,7 +19,6 @@
     <string name="status_armed">Watching for new screenshots.</string>
     <string name="status_not_armed">Not watching. Reopen the app after granting permission.</string>
 
-    <string name="history_title">History</string>
     <string name="history_empty">Nothing moved yet.</string>
     <string name="history_item">%1$s → %2$s</string>
     <string name="undo">Undo</string>
@@ -28,8 +26,8 @@
 
     <string name="working">Working…</string>
     <string name="result_moved">Moved %1$d file(s).</string>
-    <string name="result_already_sorted">Nothing left to move. Earlier files are already in their folders — see History.</string>
-    <string name="result_nothing">Nothing to move.</string>
+    <string name="result_sources_empty">Nothing left to sort — the source folders are empty.</string>
+    <string name="result_nothing_movable">Checked %1$d file(s), none could be sorted.</string>
     <string name="needs_permission">Grant permission first.</string>
 
     <string name="tab_sort">Sorting</string>
@@ -46,4 +44,9 @@
 
     <string name="target_title">Destination root</string>
     <string name="save">Save</string>
+    <string name="language_title">Language</string>
+    <string name="language_system">System</string>
+    <string name="language_english">English</string>
+    <string name="language_russian">Русский</string>
+    <string name="language_note">Android 13 and newer. On older versions this opens the system language settings.</string>
 </resources>

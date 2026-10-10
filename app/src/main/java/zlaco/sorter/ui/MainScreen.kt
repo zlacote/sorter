@@ -1,6 +1,8 @@
 package zlaco.sorter.ui
 
 import android.text.format.DateUtils
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -13,10 +15,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -32,8 +36,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -50,6 +52,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -73,6 +77,9 @@ private enum class Tab(val labelRes: Int, val icon: androidx.compose.ui.graphics
  */
 private val CONTENT_MAX_WIDTH = 480.dp
 
+/** Fully rounded ends: a pill, not a rectangle with soft corners. */
+private val PILL_RADIUS = 28.dp
+
 @Composable
 fun MainScreen(
     viewModel: MainViewModel,
@@ -86,8 +93,13 @@ fun MainScreen(
     val notice = state.notice
     val noticeText = when (notice) {
         is Notice.Moved -> context.getString(R.string.result_moved, notice.count)
-        Notice.AlreadySorted -> context.getString(R.string.result_already_sorted)
-        Notice.NothingToDo -> context.getString(R.string.result_nothing)
+        is Notice.NothingMoved ->
+            if (notice.scanned > 0) {
+                context.getString(R.string.result_nothing_movable, notice.scanned)
+            } else {
+                context.getString(R.string.result_sources_empty)
+            }
+
         Notice.NeedsPermission -> context.getString(R.string.needs_permission)
         Notice.UndoFailed -> context.getString(R.string.undo_failed)
         null -> null
@@ -103,18 +115,7 @@ fun MainScreen(
 
     Scaffold(
         snackbarHost = { SnackbarHost(snackbar) },
-        bottomBar = {
-            NavigationBar {
-                Tab.entries.forEach { entry ->
-                    NavigationBarItem(
-                        selected = tab == entry,
-                        onClick = { tab = entry },
-                        icon = { Icon(entry.icon, contentDescription = null) },
-                        label = { Text(stringResource(entry.labelRes)) },
-                    )
-                }
-            }
-        },
+        bottomBar = { PillNavigationBar(current = tab, onSelect = { tab = it }) },
     ) { padding ->
         Column(
             modifier = Modifier
@@ -126,6 +127,74 @@ fun MainScreen(
                 Tab.HISTORY -> HistoryTab(state.moves, viewModel::undo)
                 Tab.SETTINGS -> SettingsTab(state, viewModel)
             }
+        }
+    }
+}
+
+/**
+ * Floating navigation rather than a Material bar.
+ *
+ * The standard NavigationBar spreads every destination evenly across the full
+ * width, which reads as a list of settings rather than as navigation. Grouping
+ * the two places you move between into one rounded pill and leaving the third
+ * on its own beside it says "these two are siblings, that one is not" without a
+ * word, and keeps the bar from being the widest thing on screen.
+ */
+@Composable
+private fun PillNavigationBar(current: Tab, onSelect: (Tab) -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp, vertical = 12.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Row(
+            modifier = Modifier
+                .clip(RoundedCornerShape(PILL_RADIUS))
+                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                .padding(4.dp),
+            horizontalArrangement = Arrangement.spacedBy(2.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Tab.SORT.toPillItem(current, onSelect)
+            Tab.HISTORY.toPillItem(current, onSelect)
+        }
+
+        Spacer(Modifier.width(10.dp))
+
+        Tab.SETTINGS.toPillItem(current, onSelect, labelled = false)
+    }
+}
+
+private fun Tab.toPillItem(
+    current: Tab,
+    onSelect: (Tab) -> Unit,
+    labelled: Boolean = true,
+) {
+    val selected = this == current
+    val shape = RoundedCornerShape(PILL_RADIUS)
+
+    Row(
+        modifier = Modifier
+            .clip(shape)
+            .background(if (selected) MaterialTheme.colorScheme.surfaceContainerHighest else Color.Transparent)
+            .clickable { onSelect(this) }
+            .padding(horizontal = if (labelled) 18.dp else 14.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        if (labelled) {
+            Spacer(Modifier.width(6.dp))
+            Text(
+                text = stringResource(labelRes),
+                style = MaterialTheme.typography.labelLarge,
+                color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }
@@ -253,6 +322,10 @@ private fun HistoryTab(moves: List<MoveRecord>, onUndo: (MoveRecord) -> Unit) {
                 text = stringResource(R.string.history_empty),
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                // fillMaxWidth matters: the text would otherwise sit at the
+                // left edge of a full width column and textAlign would have
+                // nothing to centre within.
+                modifier = Modifier.fillMaxWidth(),
                 textAlign = TextAlign.Center,
             )
         }
@@ -377,6 +450,38 @@ private fun SettingsTab(state: UiState, viewModel: MainViewModel) {
             Text(stringResource(R.string.save))
         }
 
+        Spacer(Modifier.height(20.dp))
+        HorizontalDivider()
+        Spacer(Modifier.height(20.dp))
+
+        Text(
+            text = stringResource(R.string.language_title),
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.SemiBold,
+        )
+        Spacer(Modifier.height(8.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            AppLanguage.options.forEach { option ->
+                if (state.languageTag == option.tag) {
+                    Button(onClick = { viewModel.setLanguage(option.tag) }) {
+                        Text(stringResource(option.labelRes), textAlign = TextAlign.Center)
+                    }
+                } else {
+                    OutlinedButton(onClick = { viewModel.setLanguage(option.tag) }) {
+                        Text(stringResource(option.labelRes), textAlign = TextAlign.Center)
+                    }
+                }
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        Text(
+            text = stringResource(R.string.language_note),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
 
         Spacer(Modifier.height(24.dp))
     }
@@ -413,7 +518,10 @@ private fun SwitchRow(
 
 @Composable
 private fun PermissionCard(onOpenSettings: () -> Unit) {
-    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+    ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
                 text = stringResource(R.string.permission_title),
@@ -449,7 +557,10 @@ private fun StatusSection(state: UiState) {
         stringResource(R.string.status_line, whenText, run.moved, run.scanned)
     }
 
-    Card {
+    // fillMaxWidth on the Card itself: a Card measures to its content, so a
+    // column of short text leaves it a fraction of the row while the switch
+    // above, which has a fillMaxWidth row inside it, spans the whole width.
+    Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
                 text = stringResource(R.string.status_title),
