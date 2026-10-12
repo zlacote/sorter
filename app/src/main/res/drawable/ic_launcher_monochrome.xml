@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Themed icon companion. Android 13 and later tint this with the wallpaper
+  palette; launchers that do not simply ignore the layer and draw the regular
+  foreground instead.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M18.36,54.00 L34.02,37.58 L34.02,45.79 L73.98,45.79 L73.98,37.58 L89.64,54.00 L73.98,70.42 L73.98,62.21 L34.02,62.21 L34.02,70.42 Z" />
+</vector>
